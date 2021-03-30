@@ -1,6 +1,10 @@
-export declare function command(): u8;
 export declare function read(): u8;
 export declare function write(x: u8): void;
+
+export declare function debug(pointer: i32, value: u8): u8;
+export declare function error(kind: i32, value: i32): u8;
+
+export declare function command(): u8;
 
 const ARRAY_LIMIT = 30000;
 const VALUE_LIMIT: u8 = (2 << 6) - 1;
@@ -14,6 +18,12 @@ enum Cmd {
     Input = 44,
     LoopBegin = 91,
     LoopEnd = 93,
+    Debug = 35,
+}
+
+enum Error {
+    IndexOutOfBounds = 1,
+    Unmatched = 2,
 }
 
 export function brainfuck(): void {
@@ -51,17 +61,29 @@ export function brainfuck(): void {
                         else if (commands[i] == Cmd.LoopEnd) level--;
                         i++;
                     }
-                    if (level > 0) throw new SyntaxError('No mathing `]`');
+                    if (level > 0) {
+                        error(Error.Unmatched, Cmd.LoopBegin);
+                        throw new SyntaxError('unmatched [');
+                    }
                 } else stack.push(i - 1);
                 break;
             case Cmd.LoopEnd:
                 const _i = stack.pop();
-                if (_i == -1) throw new SyntaxError('unmatched ]');
+                if (_i == -1) {
+                    error(Error.Unmatched, Cmd.LoopEnd);
+                    throw new SyntaxError('unmatched ]');
+                }
                 i = _i;
+                break;
+            case Cmd.Debug:
+                debug(p, arr[p]);
                 break;
         }
     }
-    if (stack.pop() != -1) throw new SyntaxError('unmatched [');
+    if (stack.pop() != -1) {
+        error(Error.Unmatched, Cmd.LoopBegin);
+        throw new SyntaxError('unmatched [');
+    }
 }
 
 function readCommands(): Array<u8> {
@@ -73,14 +95,20 @@ function readCommands(): Array<u8> {
 
 @inline
 function moveRight(p: i32, arr: Array<u8>): i32 {
-    if (p == ARRAY_LIMIT) throw new Error('Index out of bounds: ' + ARRAY_LIMIT.toString());
+    if (p == ARRAY_LIMIT) {
+        error(Error.IndexOutOfBounds, ARRAY_LIMIT + 1);
+        throw new Error('Index out of bounds: ' + (ARRAY_LIMIT + 1).toString());
+    }
     if (arr.length == p + 1) arr.push(0);
     return p + 1;
 }
 
 @inline
 function moveLeft(p: i32): i32 {
-    if (p == 0) throw new Error('Index out of bounds: 0');
+    if (p == 0) {
+        error(Error.IndexOutOfBounds, -1);
+        throw new Error('Index out of bounds: -1');
+    }
     return p - 1;
 }
 
